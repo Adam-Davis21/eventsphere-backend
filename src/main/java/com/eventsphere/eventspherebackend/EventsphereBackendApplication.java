@@ -1,4 +1,4 @@
-package com.eventsphere.eventsphere_backend;
+package com.eventsphere.eventspherebackend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
