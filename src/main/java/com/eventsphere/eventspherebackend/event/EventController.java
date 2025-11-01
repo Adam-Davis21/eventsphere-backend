@@ -1,11 +1,7 @@
 package com.eventsphere.eventspherebackend.event;
 
-import com.eventsphere.eventspherebackend.event.dto.CreateEventRequest;
-import com.eventsphere.eventspherebackend.event.dto.EventResponse;
-import com.eventsphere.eventspherebackend.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,29 +11,22 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EventController {
 
-    private final EventService eventService;
+    private final EventRepository eventRepository;
 
     @PostMapping
-    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request,
-                                                     @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(eventService.createEvent(request, user));
+    public ResponseEntity<Event> createEvent(@RequestBody Event event) {
+        Event saved = eventRepository.save(event);
+        return ResponseEntity.ok(saved);
     }
 
     @GetMapping
-    public ResponseEntity<List<EventResponse>> getUserEvents(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(eventService.getEventsByUser(user));
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<EventResponse> getEventById(@PathVariable Long id) {
-        return eventService.getEventById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<List<Event>> getEvents() {
+        return ResponseEntity.ok(eventRepository.findAll());
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEvent(@PathVariable Long id) {
-        eventService.deleteEvent(id);
+        eventRepository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 }

@@ -1,73 +1,31 @@
 package com.eventsphere.eventspherebackend.user;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
+import lombok.*;
 
-import java.util.Collection;
-import java.util.List;
+@Entity
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Table(name = "users")
+public class User {
 
-@Data 
-@Builder 
-@NoArgsConstructor 
-@AllArgsConstructor 
-@Entity 
-@Table(name = "_user") 
-public class User implements UserDetails {
-
-    @Id 
-    @GeneratedValue(strategy = GenerationType.IDENTITY) 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String name;
-
-    @Column(unique = true) 
+    @Column(nullable = false, unique = true)
     private String email;
 
+    // Optional field – keep if you plan to show/display usernames later
+    @Column(nullable = true)
+    private String username;
+
+    @Column(nullable = false)
     private String password;
 
-    private String role; 
-
-    // ---- METHODS REQUIRED BY UserDetails INTERFACE ----
-
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + this.role));
-    }
-
-    @Override
-    public String getUsername() {
-        return this.email;
-    }
-
-    // --- THIS IS THE MISSING METHOD ---
-    @Override
-    public String getPassword() {
-        return this.password;
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true; 
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true; 
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true; 
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return true; 
-    }
+    @Enumerated(EnumType.STRING)
+    private Role role;
 }

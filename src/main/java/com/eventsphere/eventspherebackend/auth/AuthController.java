@@ -1,39 +1,37 @@
 package com.eventsphere.eventspherebackend.auth;
 
+import com.eventsphere.eventspherebackend.user.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@RequiredArgsConstructor // Use Lombok's modern way to inject dependencies
+@RequiredArgsConstructor
 public class AuthController {
 
-    // This is injected by the @RequiredArgsConstructor
-    private final AuthService authService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    /**
-     * This is the /register endpoint you've already built.
-     */
     @PostMapping("/register")
-    public ResponseEntity<String> registerUser(@RequestBody SignUpRequest signUpRequest) {
-        authService.registerUser(signUpRequest);
-        return ResponseEntity.ok("User registered successfully!");
+    public ResponseEntity<?> register(@RequestBody User user) {
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email already registered");
+        }
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setRole(Role.USER);
+        userRepository.save(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }
 
-    /**
-     * This is the UPDATED /login endpoint.
-     * It no longer returns a simple string.
-     * It now calls the authService.login() method and
-     * returns a ResponseEntity containing the LoginResponse (which holds the token).
-     */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> loginUser(@RequestBody LoginRequest loginRequest) {
-        // Call the service, get the response, and return it
-        LoginResponse response = authService.login(loginRequest);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<?> login(@RequestBody User login) {
+        var user = userRepository.findByEmail(login.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (!passwordEncoder.matches(login.getPassword(), user.getPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+        }
+        return ResponseEntity.ok("mock_token_123"); // for Postman testing
     }
 }

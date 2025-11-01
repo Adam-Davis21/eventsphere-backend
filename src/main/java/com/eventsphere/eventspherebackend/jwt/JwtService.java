@@ -31,7 +31,7 @@ public class JwtService {
         // You can add extra "claims" (data) to the token if you want
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", user.getRole());
-        claims.put("name", user.getName());
+        claims.put("name", user.getUsername());
         
         return buildToken(claims, user.getUsername(), jwtExpiration);
     }
@@ -42,7 +42,7 @@ public class JwtService {
                 .subject(subject) // The "subject" is the user's email
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignInKey()) // Use the modern, non-deprecated method
+                .signWith(getSignInKey(), Jwts.SIG.HS512) // Use the modern, non-deprecated method
                 .compact();
     }
 
