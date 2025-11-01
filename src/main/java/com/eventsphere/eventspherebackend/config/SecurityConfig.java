@@ -1,55 +1,71 @@
 package com.eventsphere.eventspherebackend.config;
 
+// Import all the new required classes
+import com.eventsphere.eventspherebackend.user.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
-@Configuration // Tells Spring this is a configuration class
-@EnableWebSecurity // This annotation turns on Spring Security
+@Configuration
+@EnableWebSecurity
+@RequiredArgsConstructor 
 public class SecurityConfig {
 
-    /**
-     * Checklist item 2: Define a PasswordEncoder bean.
-     * A "bean" is a Java object managed by Spring.
-     * This bean defines the tool we will use to hash and verify passwords.
-     * BCrypt is the industry-standard algorithm for this.
-     */
+    private final UserRepository userRepository;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return username -> userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + username));
+    }
+
     /**
-     * Checklist item 3: Configure security rules.
-     * This "securityFilterChain" bean is the main firewall.
+     * --- THIS IS THE FIX ---
+     * This is the modern, non-deprecated way to create the AuthenticationProvider.
+     * We create the object, then call its setter methods.
      */
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+        authProvider.setUserDetailsService(userDetailsService());
+        authProvider.setPasswordEncoder(passwordEncoder());
+        return authProvider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // 1. Disable CSRF: Not needed for a stateless REST API
             .csrf(csrf -> csrf.disable()) 
-            
-            // 2. Define the security rules
             .authorizeHttpRequests(auth -> auth
-                // Allow anyone (public access) to make requests to endpoints
-                // that start with "/api/auth/" (e.g., /api/auth/register, /api/auth/login)
                 .requestMatchers("/api/auth/**").permitAll() 
-                
-                // For any other request, the user MUST be authenticated (logged in).
                 .anyRequest().authenticated() 
             )
-            
-            // 3. Make the API "stateless"
-            // We won't use traditional sessions. This is standard for REST APIs
-            // that will use tokens (like JWT) later.
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            );
+            )
+            .authenticationProvider(authenticationProvider()); 
 
         return http.build();
     }

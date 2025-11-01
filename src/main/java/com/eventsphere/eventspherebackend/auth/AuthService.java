@@ -1,42 +1,63 @@
 package com.eventsphere.eventspherebackend.auth;
 
+import com.eventsphere.eventspherebackend.jwt.JwtService;
 import com.eventsphere.eventspherebackend.user.User;
 import com.eventsphere.eventspherebackend.user.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+
+// Import the new tools we need
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-@Service // Tells Spring that this class is a "Service" and should be managed by it.
+@Service
+@RequiredArgsConstructor // This Lombok annotation is a modern way to "inject" our dependencies
 public class AuthService {
 
-    // We need to talk to the database, so we "inject" the UserRepository.
-    @Autowired
-    private UserRepository userRepository;
-
-    // We need to hash passwords, so we "inject" the PasswordEncoder we defined.
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    // These are our "tools"
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final AuthenticationManager authenticationManager;
 
     /**
-     * This is the main registration logic.
-     * It takes the DTO from the controller and creates a new user.
+     * This is the registration logic you already built.
+     * It's good to keep it here.
      */
     public void registerUser(SignUpRequest signUpRequest) {
-        
-        // 1. Create a new User object using the builder pattern from Lombok.
-        User newUser = User.builder()
-            .name(signUpRequest.getName())
-            .email(signUpRequest.getEmail())
-            // 2. IMPORTANT: Hash the plain-text password before saving it!
-            .password(passwordEncoder.encode(signUpRequest.getPassword()))
-            // 3. Set a default role for all new users.
-            .role("USER")
-            .build();
-
-        // 4. Use the repository to save the new user to the database.
-        userRepository.save(newUser);
+        User user = User.builder()
+                .name(signUpRequest.getName())
+                .email(signUpRequest.getEmail())
+                .password(passwordEncoder.encode(signUpRequest.getPassword())) // Hash the password
+                .role("USER") // Default role
+                .build();
+        userRepository.save(user);
     }
 
-    // We will add a loginUser() method here later.
-}
+    /**
+     * This is the new login logic.
+     * It will check the password and return a LoginResponse (which contains the JWT).
+     */
+    public LoginResponse login(LoginRequest loginRequest) {
+        // 1. This line tells Spring Security to check the email and password.
+        // If the email doesn't exist or the password is wrong,
+        // it will automatically throw an exception and stop here.
+        authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                loginRequest.getEmail(),
+                loginRequest.getPassword()
+            )
+        );
 
+        // 2. If the authentication was successful, we find the user in the database.
+        var user = userRepository.findByEmail(loginRequest.getEmail())
+                .orElseThrow(() -> new IllegalStateException("User not found after successful authentication. This should not happen."));
+        
+        // 3. We use our JwtService to generate a "key card" (token) for this specific user.
+        var jwtToken = jwtService.generateToken(user);
+        
+        // 4. We create a LoginResponse object, put the token inside it, and return it.
+        return LoginResponse.builder().token(jwtToken).build();
+    }
+}
