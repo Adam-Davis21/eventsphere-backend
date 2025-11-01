@@ -2,12 +2,10 @@ package com.eventsphere.eventspherebackend.auth;
 
 import lombok.Data;
 
-@Data
+@Data // <-- THIS WAS MISSING
 public class LoginRequest {
     
-    // For logging in, we only need the user's email and password.
     private String email;
     private String password;
 
 }
-

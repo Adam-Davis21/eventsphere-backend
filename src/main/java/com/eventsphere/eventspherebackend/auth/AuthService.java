@@ -61,3 +61,4 @@ public class AuthService {
         return LoginResponse.builder().token(jwtToken).build();
     }
 }
+

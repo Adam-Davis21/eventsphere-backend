@@ -5,11 +5,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Data
-@Builder
+@Data // <-- THIS WAS MISSING
+@Builder // <-- THIS WAS MISSING
 @AllArgsConstructor
 @NoArgsConstructor
 public class LoginResponse {
-    // This class will hold the JWT to send back to the user
     private String token;
 }
