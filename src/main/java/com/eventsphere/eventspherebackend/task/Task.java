@@ -1,6 +1,7 @@
 package com.eventsphere.eventspherebackend.task;
 
 import com.eventsphere.eventspherebackend.event.Event;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,11 +17,11 @@ public class Task {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String name;
+    private String title; // ✅ keep single clear title
     private boolean completed;
-    private String title;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id")
+    @JsonBackReference(value = "event-tasks") // ✅ matches value from Event.java
     private Event event;
 }

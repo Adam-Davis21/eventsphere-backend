@@ -1,7 +1,11 @@
 package com.eventsphere.eventspherebackend.user;
 
+import com.eventsphere.eventspherebackend.event.Event;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -19,7 +23,6 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    // Optional field – keep if you plan to show/display usernames later
     @Column(nullable = true)
     private String username;
 
@@ -28,4 +31,8 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     private Role role;
+
+    // ✅ Optional: link back to events hosted by this user
+    @OneToMany(mappedBy = "host", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Event> hostedEvents = new ArrayList<>();
 }

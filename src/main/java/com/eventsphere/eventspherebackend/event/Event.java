@@ -3,6 +3,7 @@ package com.eventsphere.eventspherebackend.event;
 import com.eventsphere.eventspherebackend.user.User;
 import com.eventsphere.eventspherebackend.guest.Guest;
 import com.eventsphere.eventspherebackend.task.Task;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,9 +34,13 @@ public class Event {
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @JsonManagedReference(value = "event-guests")
     private List<Guest> guests = new ArrayList<>();
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @JsonManagedReference(value = "event-tasks")
     private List<Task> tasks = new ArrayList<>();
+
+    
 }
