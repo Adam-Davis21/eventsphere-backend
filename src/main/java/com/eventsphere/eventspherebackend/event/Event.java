@@ -29,7 +29,6 @@ public class Event {
     private String location;
     private LocalDateTime dateTime;
 
-    // ✅ IMPORTANT FIX — link to correct table + prevent recursion
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "host_id", referencedColumnName = "id")
     @JsonBackReference(value = "user-events")
@@ -44,4 +43,9 @@ public class Event {
     @Builder.Default
     @JsonManagedReference(value = "event-tasks")
     private List<Task> tasks = new ArrayList<>();
+
+    // ✅ Added constructor so we can assign event by ID when adding guests
+    public Event(Long id) {
+        this.id = id;
+    }
 }

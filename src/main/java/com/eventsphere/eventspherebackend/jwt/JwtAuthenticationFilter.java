@@ -1,6 +1,5 @@
 package com.eventsphere.eventspherebackend.jwt;
 
-import com.eventsphere.eventspherebackend.user.User;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,12 +32,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // ✅ Skip JWT validation for login/register
-        if (request.getServletPath().startsWith("/api/auth")) {
+        String path = request.getServletPath();
+
+        // ✅ FULL PUBLIC ACCESS FOR RSVP
+        if (
+                path.matches("^/api/events/\\d+$") ||                     // Get event
+                path.matches("^/api/events/\\d+/guests$") ||              // List guests
+                path.matches("^/api/events/\\d+/guests/\\d+$") ||         // Get or Update specific guest
+                path.startsWith("/rsvp") ||                               // Frontend RSVP route
+                path.startsWith("/api/auth") ||                           // Auth endpoints
+                path.equals("/error")
+        ) {
             filterChain.doFilter(request, response);
             return;
         }
 
+        // ✅ Authenticate all protected requests
         final String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -51,7 +60,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
             if (jwtService.isTokenValid(jwt, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken =
@@ -60,7 +69,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 null,
                                 userDetails.getAuthorities()
                         );
-
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }

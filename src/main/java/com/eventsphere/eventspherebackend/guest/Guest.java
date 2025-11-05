@@ -20,11 +20,12 @@ public class Guest {
     private String name;
     private String email;
 
+    @Builder.Default
     @Column(nullable = false)
-    private String rsvp = "Pending"; 
+    private String rsvp = "Pending";   // ✅ Default value now works with Builder
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "event_id")
-    @JsonBackReference(value = "event-guests") // ✅ Match value from Event.java
+    @JsonBackReference(value = "event-guests")
     private Event event;
 }

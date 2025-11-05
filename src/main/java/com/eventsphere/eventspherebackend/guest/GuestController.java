@@ -1,14 +1,11 @@
 package com.eventsphere.eventspherebackend.guest;
 
 import com.eventsphere.eventspherebackend.email.EmailService;
-import com.eventsphere.eventspherebackend.event.Event;
 import com.eventsphere.eventspherebackend.event.EventRepository;
+import com.eventsphere.eventspherebackend.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.format.DateTimeFormatter;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/events/{eventId}/guests")
@@ -19,117 +16,76 @@ public class GuestController {
     private final EventRepository eventRepository;
     private final EmailService emailService;
 
+    // ✅ Add Guest + Send Invitation Email
     @PostMapping
-    public ResponseEntity<Guest> addGuest(@PathVariable Long eventId, @RequestBody Guest guest) {
-
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new RuntimeException("Event not found"));
-
-        guest.setEvent(event);
-        Guest savedGuest = guestRepository.save(guest);
-
-        String eventDate = event.getDateTime() != null
-                ? event.getDateTime().format(DateTimeFormatter.ofPattern("EEEE, MMM dd yyyy HH:mm"))
-                : "Date TBD";
-
-        String hostName = event.getHost() != null
-                ? (event.getHost().getUsername() != null ? event.getHost().getUsername() : event.getHost().getEmail())
-                : "Event Host";
-
-        emailService.sendGuestInvitation(
-                savedGuest.getEmail(),
-                savedGuest.getName(),
-                event.getTitle(),
-                hostName,
-                eventDate,
-                event.getLocation(),
-                eventId,
-                savedGuest.getId()
-        );
-
-        return ResponseEntity.ok(savedGuest);
-    }
-
-    @GetMapping
-    public ResponseEntity<List<Guest>> getGuests(@PathVariable Long eventId) {
-        return ResponseEntity.ok(guestRepository.findByEventId(eventId));
-    }
-
-    // ✅ Host updates RSVP from dashboard
-    @PutMapping("/{guestId}")
-    public ResponseEntity<Guest> updateGuestRSVP(@PathVariable Long eventId, @PathVariable Long guestId, @RequestBody Guest updatedGuest) {
-
-        Guest guest = guestRepository.findById(guestId)
-                .orElseThrow(() -> new RuntimeException("Guest not found"));
-
-        Event event = guest.getEvent();
-        guest.setRsvp(updatedGuest.getRsvp());
-        Guest saved = guestRepository.save(guest);
-
-        // ✅ Notify Host
-        if (event.getHost() != null && event.getHost().getEmail() != null) {
-            String hostEmail = event.getHost().getEmail();
-            String eventDate = event.getDateTime() != null
-                    ? event.getDateTime().format(DateTimeFormatter.ofPattern("EEEE, MMM dd yyyy HH:mm"))
-                    : "Date TBD";
-
-            emailService.sendHostRsvpNotification(
-                    hostEmail,
-                    event.getHost().getUsername(),
-                    guest.getName(),
-                    guest.getEmail(),
-                    event.getTitle(),
-                    updatedGuest.getRsvp(),
-                    eventDate,
-                    event.getLocation()
-            );
-        }
-
-        return ResponseEntity.ok(saved);
-    }
-
-    // ✅ Public RSVP endpoint (used from email link)
-    @PutMapping("/rsvp/{guestId}")
-    @CrossOrigin(origins = "*")
-    public ResponseEntity<String> rsvpResponse(
-            @PathVariable Long guestId,
-            @RequestParam("response") String response
+    public ResponseEntity<?> addGuest(
+            @PathVariable Long eventId,
+            @RequestBody Guest newGuest
     ) {
-        Guest guest = guestRepository.findById(guestId)
-                .orElseThrow(() -> new RuntimeException("Guest not found"));
+        return eventRepository.findById(eventId)
+                .<ResponseEntity<?>>map(event -> {
+                    newGuest.setEvent(event);
+                    newGuest.setRsvp("Pending");
+                    guestRepository.save(newGuest);
 
-        Event event = guest.getEvent();
-        guest.setRsvp(response);
-        guestRepository.save(guest);
+                    // Send email, but don't fail the request if email fails
+                    try {
+                        User host = event.getHost();
+                        emailService.sendGuestInvitation(
+                                newGuest.getEmail(),
+                                newGuest.getName(),
+                                event.getTitle(),
+                                host != null ? host.getUsername() : "Host",
+                                event.getDateTime() != null ? event.getDateTime().toString() : "Date not set",
+                                event.getLocation(),
+                                event.getId(),
+                                newGuest.getId()
+                        );
+                    } catch (Exception mailEx) {
+                        // Optionally log mailEx
+                    }
 
-        // ✅ Notify Host
-        if (event.getHost() != null && event.getHost().getEmail() != null) {
-            String hostEmail = event.getHost().getEmail();
-            String eventDate = event.getDateTime() != null
-                    ? event.getDateTime().format(DateTimeFormatter.ofPattern("EEEE, MMM dd yyyy HH:mm"))
-                    : "Date TBD";
+                    return ResponseEntity.ok(newGuest);
+                })
+                .orElseGet(() -> ResponseEntity.status(404).body("Event not found"));
+    }
 
-            emailService.sendHostRsvpNotification(
-                    hostEmail,
-                    event.getHost().getUsername(),
-                    guest.getName(),
-                    guest.getEmail(),
-                    event.getTitle(),
-                    response,
-                    eventDate,
-                    event.getLocation()
-            );
-        }
-
-        return ResponseEntity.ok("RSVP updated to: " + response);
+    // ✅ Update RSVP
+    @PutMapping("/{guestId}")
+    public ResponseEntity<?> updateRsvp(
+            @PathVariable Long guestId,
+            @RequestBody Guest updatedGuest
+    ) {
+        return guestRepository.findById(guestId)
+                .<ResponseEntity<?>>map(existing -> {
+                    existing.setRsvp(updatedGuest.getRsvp());
+                    guestRepository.save(existing);
+                    return ResponseEntity.ok(existing);
+                })
+                .orElseGet(() -> ResponseEntity.status(404).body("Guest not found"));
     }
 
     // ✅ Delete Guest
     @DeleteMapping("/{guestId}")
-    public ResponseEntity<Void> deleteGuest(@PathVariable Long guestId) {
-        Guest guest = guestRepository.findById(guestId)
-                .orElseThrow(() -> new RuntimeException("Guest not found"));
-        guestRepository.delete(guest);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> deleteGuest(@PathVariable Long guestId) {
+        return guestRepository.findById(guestId)
+                .<ResponseEntity<?>>map(existing -> {
+                    guestRepository.delete(existing);
+                    return ResponseEntity.ok("Guest deleted successfully");
+                })
+                .orElseGet(() -> ResponseEntity.status(404).body("Guest not found"));
     }
+
+// ✅ Get a single guest for a specific event (used by RSVP page)
+@GetMapping("/{guestId}")
+public ResponseEntity<?> getGuest(
+        @PathVariable Long eventId,
+        @PathVariable Long guestId
+) {
+    return guestRepository.findById(guestId)
+            .filter(g -> g.getEvent() != null && g.getEvent().getId().equals(eventId))
+            .<ResponseEntity<?>>map(ResponseEntity::ok) // ✅ FIX: treat response generically
+            .orElseGet(() -> ResponseEntity.status(404).body("Guest not found"));
+}
+
 }

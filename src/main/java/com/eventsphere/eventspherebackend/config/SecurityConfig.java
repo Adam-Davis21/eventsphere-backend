@@ -26,7 +26,7 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(request -> {
@@ -34,16 +34,27 @@ public class SecurityConfig {
                     config.setAllowedOrigins(List.of("http://localhost:3000"));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                     config.setAllowedHeaders(List.of("*"));
-                    config.setExposedHeaders(List.of("Authorization"));
                     config.setAllowCredentials(true);
                     return config;
                 }))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/error", "/rsvp/**").permitAll()
+
+                        // ✅ Public RSVP endpoints — no login required
+                        .requestMatchers("/api/events/*").permitAll()
+                        .requestMatchers("/api/events/*/guests").permitAll()
+                        .requestMatchers("/api/events/*/guests/*").permitAll()
+
+                        // ✅ Public frontend route
+                        .requestMatchers("/rsvp/**").permitAll()
+
+                        // ✅ Auth routes allowed
+                        .requestMatchers("/api/auth/**").permitAll()
+
+                        // ✅ Everything else requires login
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider())  // ✅ required
+                .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -51,10 +62,10 @@ public class SecurityConfig {
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService); // ✅ Your UserDetailsService
-        authProvider.setPasswordEncoder(passwordEncoder());     // ✅ BCrypt
-        return authProvider;
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
 
     @Bean
