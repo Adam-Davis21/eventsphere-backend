@@ -1,78 +1,62 @@
 package com.eventsphere.eventspherebackend.event;
 
-import com.eventsphere.eventspherebackend.guest.Guest;
-import com.eventsphere.eventspherebackend.guest.GuestRepository;
-import com.eventsphere.eventspherebackend.task.Task;
-import com.eventsphere.eventspherebackend.task.TaskRepository;
+import com.eventsphere.eventspherebackend.user.User;
+import com.eventsphere.eventspherebackend.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.security.Principal;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/events")
-@CrossOrigin(origins = "http://localhost:3000") // ✅ allow frontend requests
 @RequiredArgsConstructor
 public class EventController {
 
     private final EventRepository eventRepository;
-    private final GuestRepository guestRepository;
-    private final TaskRepository taskRepository;
+    private final UserRepository userRepository;
 
-    // ✅ Create Event
-    @PostMapping
-    public ResponseEntity<Event> createEvent(@RequestBody Event event) {
-        if (event.getDateTime() == null) {
-            event.setDateTime(LocalDateTime.now());
-        }
-
-        // Ensure empty lists instead of null
-        if (event.getGuests() == null) event.setGuests(new ArrayList<>());
-        if (event.getTasks() == null) event.setTasks(new ArrayList<>());
-
-        Event saved = eventRepository.save(event);
-        return ResponseEntity.ok(saved);
-    }
-
-    // ✅ Get all events
     @GetMapping
-    public ResponseEntity<List<Event>> getEvents() {
-        List<Event> events = eventRepository.findAll();
-        return ResponseEntity.ok(events);
+    public ResponseEntity<List<Event>> getUserEvents(Principal principal) {
+        User user = userRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return ResponseEntity.ok(eventRepository.findByHost(user));
     }
 
-    // ✅ Get specific event with guests & tasks
+    // ✅ NEW: Fetch a single event by ID
     @GetMapping("/{id}")
-    public ResponseEntity<Event> getEventById(@PathVariable Long id) {
-        Optional<Event> optionalEvent = eventRepository.findById(id);
+    public ResponseEntity<?> getEventById(@PathVariable Long id, Principal principal) {
 
-        if (optionalEvent.isEmpty()) {
-            return ResponseEntity.notFound().build();
+        // ✅ Identify current logged-in user
+        User user = userRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // ✅ Fetch event
+        Event event = eventRepository.findById(id).orElse(null);
+
+        if (event == null) {
+            return ResponseEntity.status(404).body("Event not found");
         }
 
-        Event event = optionalEvent.get();
-
-        // Force initialize collections
-        event.getGuests().size();
-        event.getTasks().size();
+        // ✅ Ensure the event belongs to this user
+        if (!event.getHost().getId().equals(user.getId())) {
+            return ResponseEntity.status(403).body("Access denied");
+        }
 
         return ResponseEntity.ok(event);
     }
 
-    // ✅ Delete Event
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteEvent(@PathVariable Long id) {
-        if (!eventRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
-        }
-        eventRepository.deleteById(id);
-        return ResponseEntity.noContent().build();
-    }
+    @PostMapping
+    public ResponseEntity<Event> createEvent(@RequestBody Event event, Principal principal) {
 
-    
-    
+        User user = userRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        event.setHost(user);
+
+        Event savedEvent = eventRepository.save(event);
+        return ResponseEntity.ok(savedEvent);
+    }
 }

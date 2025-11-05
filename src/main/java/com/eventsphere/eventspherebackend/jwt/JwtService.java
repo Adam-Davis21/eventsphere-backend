@@ -5,10 +5,11 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets; // <-- IMPORT THIS
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,40 +18,33 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    // These values are injected from your application.properties file
     @Value("${jwt.secret-key}")
     private String jwtSecretKey;
 
     @Value("${jwt.expiration-ms}")
     private long jwtExpiration;
 
-    /**
-     * Generates a new JWT for a given user.
-     */
     public String generateToken(User user) {
-        // You can add extra "claims" (data) to the token if you want
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", user.getRole());
-        claims.put("name", user.getUsername());
-        
-        return buildToken(claims, user.getUsername(), jwtExpiration);
+
+        // ✅ SUBJECT MUST BE EMAIL — NOT username
+        return buildToken(claims, user.getEmail(), jwtExpiration);
     }
 
     private String buildToken(Map<String, Object> extraClaims, String subject, long expiration) {
         return Jwts.builder()
                 .claims(extraClaims)
-                .subject(subject) // The "subject" is the user's email
+                .subject(subject) // ✅ email stored inside JWT
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSignInKey(), Jwts.SIG.HS512) // Use the modern, non-deprecated method
+                .signWith(getSignInKey(), Jwts.SIG.HS512)
                 .compact();
     }
 
-    // --- Validation and Extraction Methods ---
-
-    public boolean isTokenValid(String token, User user) {
+    public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(user.getUsername())) && !isTokenExpired(token);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
     }
 
     public boolean isTokenExpired(String token) {
@@ -62,7 +56,7 @@ public class JwtService {
     }
 
     public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+        return extractClaim(token, Claims::getSubject); // ✅ returns email now
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
@@ -72,21 +66,13 @@ public class JwtService {
 
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(getSignInKey()) // Use the modern, non-deprecated method
+                .verifyWith(getSignInKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
     }
 
-    /**
-     * --- THIS IS THE FIX ---
-     * This method now takes the plain text secret key from your properties
-     * and converts it to the raw bytes used for the signing key.
-     * No Base64 decoding is needed.
-     */
     private SecretKey getSignInKey() {
-        byte[] keyBytes = jwtSecretKey.getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(keyBytes);
+        return Keys.hmacShaKeyFor(jwtSecretKey.getBytes(StandardCharsets.UTF_8));
     }
 }
-

@@ -3,6 +3,7 @@ package com.eventsphere.eventspherebackend.event;
 import com.eventsphere.eventspherebackend.user.User;
 import com.eventsphere.eventspherebackend.guest.Guest;
 import com.eventsphere.eventspherebackend.task.Task;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
@@ -28,8 +29,10 @@ public class Event {
     private String location;
     private LocalDateTime dateTime;
 
+    // ✅ IMPORTANT FIX — link to correct table + prevent recursion
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "host_id", referencedColumnName = "id")
+    @JsonBackReference(value = "user-events")
     private User host;
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -41,6 +44,4 @@ public class Event {
     @Builder.Default
     @JsonManagedReference(value = "event-tasks")
     private List<Task> tasks = new ArrayList<>();
-
-    
 }
