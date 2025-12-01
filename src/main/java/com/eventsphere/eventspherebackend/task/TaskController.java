@@ -1,6 +1,5 @@
 package com.eventsphere.eventspherebackend.task;
 
-import com.eventsphere.eventspherebackend.event.Event;
 import com.eventsphere.eventspherebackend.event.EventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,52 +15,60 @@ public class TaskController {
     private final TaskRepository taskRepository;
     private final EventRepository eventRepository;
 
-    // ✅ Add new task
+    // ✅ Add Task (with priority + dueDate)
     @PostMapping
-    public ResponseEntity<Task> addTask(@PathVariable Long eventId, @RequestBody Task task) {
-        Event event = eventRepository.findById(eventId)
-                .orElseThrow(() -> new RuntimeException("Event not found"));
-        task.setEvent(event);
-        return ResponseEntity.ok(taskRepository.save(task));
+    public ResponseEntity<?> addTask(@PathVariable Long eventId, @RequestBody Task task) {
+        return eventRepository.findById(eventId)
+                .map(event -> {
+                    task.setEvent(event);
+                    var saved = taskRepository.save(task);
+                    // force body type to Object so fallback types line up
+                    return ResponseEntity.ok().body((Object) saved);
+                })
+                .orElseGet(() -> ResponseEntity.status(404).body((Object) "Event not found"));
     }
 
-    // ✅ Get all tasks for an event
+    // ✅ Get tasks for an event
     @GetMapping
     public ResponseEntity<List<Task>> getTasks(@PathVariable Long eventId) {
         return ResponseEntity.ok(taskRepository.findByEventId(eventId));
     }
 
-    // ✅ Update task completion (toggle)
+    // ✅ Update Task (priority, dueDate, completed)
     @PutMapping("/{taskId}")
-    public ResponseEntity<Task> updateTaskCompletion(
+    public ResponseEntity<?> updateTask(
             @PathVariable Long eventId,
             @PathVariable Long taskId,
-            @RequestBody Task updatedTask
+            @RequestBody Task updated
     ) {
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
+        return taskRepository.findById(taskId)
+                .map(task -> {
+                    if (!task.getEvent().getId().equals(eventId)) {
+                        return ResponseEntity.badRequest().body((Object) "Task does not belong to this event");
+                    }
 
-        // Ensure the task actually belongs to this event
-        if (!task.getEvent().getId().equals(eventId)) {
-            return ResponseEntity.badRequest().build();
-        }
+                    task.setTitle(updated.getTitle());
+                    task.setPriority(updated.getPriority());
+                    task.setDueDate(updated.getDueDate());
+                    task.setCompleted(updated.isCompleted());
 
-        task.setCompleted(updatedTask.isCompleted());
-        return ResponseEntity.ok(taskRepository.save(task));
+                    var saved = taskRepository.save(task);
+                    return ResponseEntity.ok().body((Object) saved);
+                })
+                .orElseGet(() -> ResponseEntity.status(404).body((Object) "Task not found"));
     }
 
-    // ✅ Delete a task
+    // ✅ Delete Task
     @DeleteMapping("/{taskId}")
-    public ResponseEntity<Void> deleteTask(@PathVariable Long eventId, @PathVariable Long taskId) {
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
-
-        // Ensure it belongs to this event
-        if (!task.getEvent().getId().equals(eventId)) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        taskRepository.delete(task);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> deleteTask(@PathVariable Long eventId, @PathVariable Long taskId) {
+        return taskRepository.findById(taskId)
+                .map(task -> {
+                    if (!task.getEvent().getId().equals(eventId)) {
+                        return ResponseEntity.badRequest().body((Object) "Task does not belong to this event");
+                    }
+                    taskRepository.delete(task);
+                    return ResponseEntity.ok().body((Object) "Task deleted");
+                })
+                .orElseGet(() -> ResponseEntity.status(404).body((Object) "Task not found"));
     }
 }
